@@ -32,6 +32,7 @@ jobs:
           mkdir -p fongmi/danmaku/src/main
           cp -r dfm/DanmakuFlameMaster/src/main/java fongmi/danmaku/src/main/java
           cp -r dfm/DanmakuFlameMaster/src/main/res fongmi/danmaku/src/main/res 2>/dev/null || true
+          rm -rf dfm
 
       - name: Patch build files
         working-directory: fongmi
