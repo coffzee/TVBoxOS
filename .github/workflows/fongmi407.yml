@@ -47,7 +47,7 @@ jobs:
           # app/build.gradle: fileTree AAR 换成工程依赖，弹幕库走工程模块
           a = open('app/build.gradle').read()
           a = a.replace('implementation fileTree(dir: "libs", include: ["*.aar"])',
-                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation project(":danmaku")')
+                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation project(":danmaku")\n    implementation "androidx.media3:media3-common:1.8.0"\n    implementation "androidx.media3:media3-exoplayer:1.8.0"\n    implementation "androidx.media3:media3-ui:1.8.0"\n    implementation "androidx.media3:media3-database:1.8.0"\n    implementation "androidx.media3:media3-datasource-okhttp:1.8.0"\n    implementation "androidx.media3:media3-exoplayer-dash:1.8.0"\n    implementation "androidx.media3:media3-exoplayer-hls:1.8.0"\n    implementation "androidx.media3:media3-exoplayer-rtsp:1.8.0"')
           open('app/build.gradle','w').write(a)
           print('patched')
           EOF
