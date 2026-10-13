@@ -28,6 +28,24 @@ jobs:
           # androidx 发布脚本白名单缺 org.brotli:dec，补进 JAR 列表
           sed -i 's/"org\.chromium\.net:cronet-api",/"org.chromium.net:cronet-api",\n      "org.brotli:dec",/' build-logic/src/main/kotlin/androidx/media3/buildlogic/aarTypeWorkaround.kt
           grep -n "brotli" build-logic/src/main/kotlin/androidx/media3/buildlogic/aarTypeWorkaround.kt
+
+          # 给 fork 的 SubtitleView 补 TV 4.0.7 用到的 6 个定制方法
+          python3 - <<'EOF'
+          p = 'libraries/ui/src/main/java/androidx/media3/ui/SubtitleView.java'
+          src = open(p).read()
+          anchor = "  public void setBottomPosition(float bottomPosition) {\n    this.bottomPosition = bottomPosition;\n    updateOutput();\n  }\n"
+          assert anchor in src, 'anchor not found'
+          add = anchor + (
+            "  public float getPosition() {\n    return bottomPosition;\n  }\n\n"
+            "  public void addPosition(float delta) {\n    setBottomPosition(bottomPosition + delta);\n  }\n\n"
+            "  public void subPosition(float delta) {\n    setBottomPosition(bottomPosition - delta);\n  }\n\n"
+            "  public float getTextSize() {\n    return defaultTextSize;\n  }\n\n"
+            "  public void addTextSize(float delta) {\n    setFractionalTextSize(defaultTextSize + delta);\n  }\n\n"
+            "  public void subTextSize(float delta) {\n    setFractionalTextSize(defaultTextSize - delta);\n  }\n")
+          open(p, 'w').write(src.replace(anchor, add))
+          print('SubtitleView patched')
+          EOF
+
           ./gradlew :lib-common:publishToMavenLocal :lib-ui:publishToMavenLocal :lib-ui-danmaku:publishToMavenLocal --no-daemon
           echo "--- mavenLocal artifacts ---"
           find ~/.m2/repository/androidx/media3 -name "*.aar" -o -name "*.jar" | head
