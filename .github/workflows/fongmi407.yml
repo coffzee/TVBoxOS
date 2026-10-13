@@ -1,0 +1,61 @@
+name: FongMi 4.0.7 build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Checkout FongMi/TV at 4.0.7 (minSdk 21)
+        run: |
+          git init fongmi
+          cd fongmi
+          git remote add origin https://github.com/FongMi/TV.git
+          git fetch --depth 1 origin 6f0d2b5a08e0f324502d480e3b0f83232b9c3947
+          git checkout FETCH_HEAD
+
+      - name: Patch build files
+        working-directory: fongmi
+        run: |
+          # 库模块以源码工程方式接入（官方彼时用不入库的 AAR）
+          python3 - <<'EOF'
+          import re
+          # settings.gradle: 增加 5 个库模块
+          s = open('settings.gradle').read()
+          s = s.replace("include ':quickjs'", "include ':quickjs'\ninclude ':forcetech'\ninclude ':hook'\ninclude ':jianpian'\ninclude ':thunder'\ninclude ':tvbus'")
+          open('settings.gradle','w').write(s)
+          # app/build.gradle: fileTree AAR 换成工程依赖，并补弹幕库
+          a = open('app/build.gradle').read()
+          a = a.replace('implementation fileTree(dir: "libs", include: ["*.aar"])',
+                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation "com.github.ctiao:DanmakuFlameMaster:0.9.25"')
+          open('app/build.gradle','w').write(a)
+          print('patched')
+          EOF
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+          git diff --stat
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build leanback armeabi_v7a debug APK
+        working-directory: fongmi
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleLeanbackArmeabi_v7aDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: fongmi-407-leanback-arm32
+          path: fongmi/app/build/outputs/apk/leanbackArmeabi_v7a/debug/*.apk
