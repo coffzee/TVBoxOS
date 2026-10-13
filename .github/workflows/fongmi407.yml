@@ -24,19 +24,6 @@ jobs:
         run: |
           git clone --depth 1 -b release-1.11.0-fongmi https://github.com/FongMi/media.git media
           cd media
-          cat > settings.gradle.kts <<'EOF'
-          pluginManagement {
-            includeBuild("build-logic-settings")
-            includeBuild("build-logic")
-            repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          plugins { id("gradlebuild.media3-settings-logic") }
-          rootProject.name = "androidx.media3"
-          include(":lib-common")
-          project(":lib-common").projectDir = file("libraries/common")
-          include(":lib-ui")
-          project(":lib-ui").projectDir = file("libraries/ui")
-          EOF
           chmod +x gradlew
           ./gradlew :lib-common:publishToMavenLocal :lib-ui:publishToMavenLocal --no-daemon
           echo "--- mavenLocal artifacts ---"
