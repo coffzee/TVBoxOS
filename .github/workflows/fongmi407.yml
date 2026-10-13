@@ -39,7 +39,7 @@ jobs:
           # app/build.gradle: fileTree AAR 换成工程依赖，并补弹幕库
           a = open('app/build.gradle').read()
           a = a.replace('implementation fileTree(dir: "libs", include: ["*.aar"])',
-                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation "com.github.ctiao:DanmakuFlameMaster:0.9.25"')
+                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation "com.github.Bilibili:DanmakuFlameMaster:v0.9.25"')
           open('app/build.gradle','w').write(a)
           print('patched')
           EOF
