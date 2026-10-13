@@ -26,49 +26,48 @@ jobs:
           git fetch --depth 1 origin 6f0d2b5a08e0f324502d480e3b0f83232b9c3947
           git checkout FETCH_HEAD
 
-      - name: Checkout DanmakuFlameMaster v0.9.25
+      - name: Restore private-era AARs (danmaku + dlna)
         run: |
-          git clone --depth 1 --branch v0.9.25 https://github.com/Bilibili/DanmakuFlameMaster.git dfm
-          mkdir -p fongmi/danmaku/src/main
-          cp -r dfm/DanmakuFlameMaster/src/main/java fongmi/danmaku/src/main/java
-          cp -r dfm/DanmakuFlameMaster/src/main/res fongmi/danmaku/src/main/res 2>/dev/null || true
-          rm -rf dfm
+          base=https://raw.githubusercontent.com/liujianpc/PhoneMeTv/develop/app/libs
+          for f in danmaku.aar dlna-core-release.aar dlna-dmc-release.aar dlna-dmr-release.aar; do
+            curl -sSL --retry 3 -o fongmi/app/libs/$f $base/$f
+            ls -la fongmi/app/libs/$f
+          done
 
       - name: Patch build files
         working-directory: fongmi
         run: |
           python3 - <<'EOF'
-          # settings.gradle: 增加库模块
           s = open('settings.gradle').read()
           s = s.replace("include ':quickjs'",
-                        "include ':quickjs'\ninclude ':forcetech'\ninclude ':hook'\ninclude ':jianpian'\ninclude ':thunder'\ninclude ':tvbus'\ninclude ':danmaku'")
+                        "include ':quickjs'\ninclude ':forcetech'\ninclude ':hook'\ninclude ':jianpian'\ninclude ':thunder'\ninclude ':tvbus'")
           open('settings.gradle','w').write(s)
 
-          # app/build.gradle: fileTree AAR 换成工程依赖，弹幕库走工程模块
           a = open('app/build.gradle').read()
-          a = a.replace('implementation fileTree(dir: "libs", include: ["*.aar"])',
-                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation project(":danmaku")\n    implementation "androidx.media3:media3-common:1.8.0"\n    implementation "androidx.media3:media3-exoplayer:1.8.0"\n    implementation "androidx.media3:media3-ui:1.8.0"\n    implementation "androidx.media3:media3-database:1.8.0"\n    implementation "androidx.media3:media3-datasource-okhttp:1.8.0"\n    implementation "androidx.media3:media3-exoplayer-dash:1.8.0"\n    implementation "androidx.media3:media3-exoplayer-hls:1.8.0"\n    implementation "androidx.media3:media3-exoplayer-rtsp:1.8.0"')
+          old = 'implementation fileTree(dir: "libs", include: ["*.aar"])'
+          new = ('implementation fileTree(dir: "libs", include: ["*.aar"])\n'
+                 '    implementation project(":forcetech")\n'
+                 '    implementation project(":hook")\n'
+                 '    implementation project(":jianpian")\n'
+                 '    implementation project(":thunder")\n'
+                 '    implementation project(":tvbus")\n'
+                 '    implementation "androidx.media3:media3-common:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-ui:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-database:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-datasource-okhttp:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-datasource-rtmp:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-dash:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-hls:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-rtsp:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-smoothstreaming:1.8.0"\n'
+                 '    implementation("com.github.anilbeesetti.nextlib:nextlib-media3ext:0.8.2") { exclude group: "androidx.media3", module: "media3-exoplayer" }')
+          assert old in a
+          a = a.replace(old, new)
           open('app/build.gradle','w').write(a)
           print('patched')
           EOF
 
-          # danmaku 模块：AGP8 兼容配置
-          cat > danmaku/build.gradle <<'G'
-          plugins { id 'com.android.library' }
-          android {
-              namespace 'master.flame.danmaku'
-              compileSdk 34
-              defaultConfig { minSdk 21 }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-          }
-          G
-          cat > danmaku/src/main/AndroidManifest.xml <<'X'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest />
-          X
           # chaquo: pin 兼容 Python 3.8 的版本
           sed -i 's/^pyquery$/pyquery==2.0.1/' chaquo/requirements.txt
           grep -q cssselect chaquo/requirements.txt || echo cssselect==1.2.0 >> chaquo/requirements.txt
