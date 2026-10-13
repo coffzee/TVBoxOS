@@ -26,23 +26,48 @@ jobs:
           git fetch --depth 1 origin 6f0d2b5a08e0f324502d480e3b0f83232b9c3947
           git checkout FETCH_HEAD
 
+      - name: Checkout DanmakuFlameMaster v0.9.25
+        run: |
+          git clone --depth 1 --branch v0.9.25 https://github.com/Bilibili/DanmakuFlameMaster.git dfm
+          mkdir -p fongmi/danmaku/src/main
+          cp -r dfm/DanmakuFlameMaster/src/main/java fongmi/danmaku/src/main/java
+          cp -r dfm/DanmakuFlameMaster/src/main/res fongmi/danmaku/src/main/res 2>/dev/null || true
+
       - name: Patch build files
         working-directory: fongmi
         run: |
-          # 库模块以源码工程方式接入（官方彼时用不入库的 AAR）
           python3 - <<'EOF'
-          import re
-          # settings.gradle: 增加 5 个库模块
+          # settings.gradle: 增加库模块
           s = open('settings.gradle').read()
-          s = s.replace("include ':quickjs'", "include ':quickjs'\ninclude ':forcetech'\ninclude ':hook'\ninclude ':jianpian'\ninclude ':thunder'\ninclude ':tvbus'")
+          s = s.replace("include ':quickjs'",
+                        "include ':quickjs'\ninclude ':forcetech'\ninclude ':hook'\ninclude ':jianpian'\ninclude ':thunder'\ninclude ':tvbus'\ninclude ':danmaku'")
           open('settings.gradle','w').write(s)
-          # app/build.gradle: fileTree AAR 换成工程依赖，并补弹幕库
+
+          # app/build.gradle: fileTree AAR 换成工程依赖，弹幕库走工程模块
           a = open('app/build.gradle').read()
           a = a.replace('implementation fileTree(dir: "libs", include: ["*.aar"])',
-                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation "com.github.Bilibili:DanmakuFlameMaster:v0.9.25"')
+                        'implementation project(":forcetech")\n    implementation project(":hook")\n    implementation project(":jianpian")\n    implementation project(":thunder")\n    implementation project(":tvbus")\n    implementation project(":danmaku")')
           open('app/build.gradle','w').write(a)
           print('patched')
           EOF
+
+          # danmaku 模块：AGP8 兼容配置
+          cat > danmaku/build.gradle <<'G'
+          plugins { id 'com.android.library' }
+          android {
+              namespace 'master.flame.danmaku'
+              compileSdk 34
+              defaultConfig { minSdk 21 }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+          G
+          cat > danmaku/src/main/AndroidManifest.xml <<'X'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest />
+          X
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           git diff --stat
 
