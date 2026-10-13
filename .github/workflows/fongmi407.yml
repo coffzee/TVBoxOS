@@ -69,6 +69,9 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest />
           X
+          # chaquo: pin 兼容 Python 3.8 的版本
+          sed -i 's/^pyquery$/pyquery==2.0.1/' chaquo/requirements.txt
+          grep -q cssselect chaquo/requirements.txt || echo cssselect==1.2.0 >> chaquo/requirements.txt
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           git diff --stat
 
