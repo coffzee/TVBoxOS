@@ -13,12 +13,37 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+      - uses: gradle/actions/setup-gradle@v4
 
-      - name: Checkout FongMi/TV at 4.0.7 (minSdk 21)
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+
+      # 阶段 A：构建 FongMi/media fork（含 setRender/setBottomPosition/AUDIO_AV3A 定制）
+      # 只发布 lib-common + lib-ui 到 mavenLocal，版本 1.11.0 与官方 mavenCentral 坐标一致
+      - name: Build FongMi/media fork into mavenLocal
+        run: |
+          git clone --depth 1 -b release-1.11.0-fongmi https://github.com/FongMi/media.git media
+          cd media
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+            includeBuild("build-logic-settings")
+            includeBuild("build-logic")
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          plugins { id("gradlebuild.media3-settings-logic") }
+          rootProject.name = "androidx.media3"
+          include(":lib-common")
+          project(":lib-common").projectDir = file("libraries/common")
+          include(":lib-ui")
+          project(":lib-ui").projectDir = file("libraries/ui")
+          EOF
+          chmod +x gradlew
+          ./gradlew :lib-common:publishToMavenLocal :lib-ui:publishToMavenLocal --no-daemon
+          echo "--- mavenLocal artifacts ---"
+          find ~/.m2/repository/androidx/media3 -name "*.aar" -o -name "*.jar" | head
+
+      # 阶段 B：FongMi/TV 4.0.7（minSdk 21 早期提交）
+      - name: Checkout FongMi/TV at 4.0.7
         run: |
           git init fongmi
           cd fongmi
@@ -37,12 +62,11 @@ jobs:
       - name: Patch build files
         working-directory: fongmi
         run: |
-          python3 - <<'EOF'
-          s = open('settings.gradle').read()
-          s = s.replace("include ':quickjs'",
-                        "include ':quickjs'\ninclude ':forcetech'\ninclude ':hook'\ninclude ':jianpian'\ninclude ':thunder'\ninclude ':tvbus'")
-          open('settings.gradle','w').write(s)
+          # settings.gradle：mavenLocal 优先，供 fork 版 media3 覆盖官方 1.11.0
+          sed -i 's/^    repositories {$/    repositories {\n        mavenLocal()/' settings.gradle
 
+          # media3 依赖直接用 1.11.0（fork 的 common/ui 来自 mavenLocal，其余走 mavenCentral）
+          python3 - <<'EOF'
           a = open('app/build.gradle').read()
           old = 'implementation fileTree(dir: "libs", include: ["*.aar"])'
           new = ('implementation fileTree(dir: "libs", include: ["*.aar"])\n'
@@ -51,16 +75,16 @@ jobs:
                  '    implementation project(":jianpian")\n'
                  '    implementation project(":thunder")\n'
                  '    implementation project(":tvbus")\n'
-                 '    implementation "androidx.media3:media3-common:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-exoplayer:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-ui:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-database:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-datasource-okhttp:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-datasource-rtmp:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-exoplayer-dash:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-exoplayer-hls:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-exoplayer-rtsp:1.8.0"\n'
-                 '    implementation "androidx.media3:media3-exoplayer-smoothstreaming:1.8.0"\n'
+                 '    implementation "androidx.media3:media3-common:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-ui:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-database:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-datasource-okhttp:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-datasource-rtmp:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-dash:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-hls:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-rtsp:1.11.0"\n'
+                 '    implementation "androidx.media3:media3-exoplayer-smoothstreaming:1.11.0"\n'
                  '    implementation("com.github.anilbeesetti.nextlib:nextlib-media3ext:0.8.2") { exclude group: "androidx.media3", module: "media3-exoplayer" }')
           assert old in a
           a = a.replace(old, new)
@@ -68,13 +92,25 @@ jobs:
           print('patched')
           EOF
 
+          # 补丁 1：删掉私有 media3 才有的 MediaItem.Builder.setAds / setDecode（无消费方）
+          sed -i '/builder\.setAds(Sniffer\.getRegex(uri));/d' app/src/main/java/com/fongmi/android/tv/player/exo/ExoUtil.java
+          sed -i '/builder\.setDecode(decode);/d' app/src/main/java/com/fongmi/android/tv/player/exo/ExoUtil.java
+
+          # 补丁 2：fork MimeTypes 只有 APPLICATION_OCTET_STREAM，无 APPLICATION_OCTET
+          sed -i 's/MimeTypes\.APPLICATION_OCTET;/MimeTypes.APPLICATION_OCTET_STREAM;/' app/src/main/java/com/fongmi/android/tv/player/exo/ExoUtil.java
+
+          # 补丁 3：公开版 nextlib 没有 setAudioPrefer/setVideoPrefer（私有 AAR 定制）
+          sed -i 's/\.setAudioPrefer(Setting\.isAudioPrefer())//; s/\.setVideoPrefer(Setting\.isVideoPrefer())//' app/src/main/java/com/fongmi/android/tv/player/exo/ExoUtil.java
+
+          # 补丁 4：fork media3 minSdk 23，与 app minSdk 21 冲突 → 提到 23（目标电视 API 23）
+          sed -i 's/minSdk 21/minSdk 23/' app/build.gradle
+
           # chaquo: pin 兼容 Python 3.8 的版本
           sed -i 's/^pyquery$/pyquery==2.0.1/' chaquo/requirements.txt
           grep -q cssselect chaquo/requirements.txt || echo cssselect==1.2.0 >> chaquo/requirements.txt
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
-          git diff --stat
-
-      - uses: gradle/actions/setup-gradle@v4
+          grep -n "mavenLocal\|media3\|minSdk" settings.gradle app/build.gradle
+          grep -n "setAds\|setDecode\|AUDIO\|OCTET\|RenderersFactory()" app/src/main/java/com/fongmi/android/tv/player/exo/ExoUtil.java
 
       - name: Build leanback armeabi_v7a debug APK
         working-directory: fongmi
