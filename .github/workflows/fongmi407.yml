@@ -49,8 +49,9 @@ jobs:
       - name: Patch build files
         working-directory: fongmi
         run: |
-          # settings.gradle：mavenLocal 优先，供 fork 版 media3 覆盖官方 1.11.0
+          # settings.gradle：mavenLocal 优先 + 补上模块 include（私有时代这些模块未入 settings）
           sed -i 's/^    repositories {$/    repositories {\n        mavenLocal()/' settings.gradle
+          sed -i "s/include ':quickjs'/include ':quickjs'\ninclude ':forcetech'\ninclude ':hook'\ninclude ':jianpian'\ninclude ':thunder'\ninclude ':tvbus'/" settings.gradle
 
           # media3 依赖直接用 1.11.0（fork 的 common/ui 来自 mavenLocal，其余走 mavenCentral）
           python3 - <<'EOF'
