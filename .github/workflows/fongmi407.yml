@@ -25,6 +25,9 @@ jobs:
           git clone --depth 1 -b release-1.11.0-fongmi https://github.com/FongMi/media.git media
           cd media
           chmod +x gradlew
+          # androidx 发布脚本白名单缺 org.brotli:dec，补进 JAR 列表
+          sed -i 's/"org\.chromium\.net:cronet-api",/"org.chromium.net:cronet-api",\n      "org.brotli:dec",/' build-logic/src/main/kotlin/androidx/media3/buildlogic/aarTypeWorkaround.kt
+          grep -n "brotli" build-logic/src/main/kotlin/androidx/media3/buildlogic/aarTypeWorkaround.kt
           ./gradlew :lib-common:publishToMavenLocal :lib-ui:publishToMavenLocal :lib-ui-danmaku:publishToMavenLocal --no-daemon
           echo "--- mavenLocal artifacts ---"
           find ~/.m2/repository/androidx/media3 -name "*.aar" -o -name "*.jar" | head
