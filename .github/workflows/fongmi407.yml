@@ -25,7 +25,7 @@ jobs:
           git clone --depth 1 -b release-1.11.0-fongmi https://github.com/FongMi/media.git media
           cd media
           chmod +x gradlew
-          ./gradlew :lib-common:publishToMavenLocal :lib-ui:publishToMavenLocal --no-daemon
+          ./gradlew :lib-common:publishToMavenLocal :lib-ui:publishToMavenLocal :lib-ui-danmaku:publishToMavenLocal --no-daemon
           echo "--- mavenLocal artifacts ---"
           find ~/.m2/repository/androidx/media3 -name "*.aar" -o -name "*.jar" | head
 
